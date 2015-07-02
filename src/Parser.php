@@ -523,9 +523,12 @@ class Parser
         if (is_array($structure)) {
             $result = array();
             foreach ($structure as $key => $structureElement) {
+                // some element could be placeholder for response types, so we should preserve them for further processing
+                if ($structureElement == null) {
+                    $structureElement = array();
+                }
                 $result[$key] = $this->includeAndParseFiles($structureElement, $rootDir, $parseSchemas);
             }
-
             return $result;
         } elseif (strpos($structure, '!include') === 0) {
             return $this->loadAndParseFile(str_replace('!include ', '', $structure), $rootDir, $parseSchemas);
@@ -606,6 +609,13 @@ class Parser
             if ($key === 'type' && strpos($parentKey, '/') === 0) {
                 $type = [];
 
+                // TODO this should only be done once, especially since this is a recursive function
+                // name should be the resourcePathName and not the resource path itself
+                $names = preg_split('/\//', $name);
+                do {
+                    $name = array_pop($names);
+                } while (!empty($names) && preg_match('/{(.*)}/', $name));
+
                 $traitVariables = ['resourcePath' => $path, 'resourcePathName' => $name];
 
                 if (is_array($value)) {
@@ -615,7 +625,6 @@ class Parser
                 } elseif (isset($types[$value])) {
                     $type = $this->applyTraitVariables($traitVariables, $types[$value]);
                 }
-
                 $newArray = array_replace_recursive($newArray, $this->replaceTypes($type, $types, $path, $name, $key));
             } else {
                 $newValue = $this->replaceTypes($value, $types, $path, $name, $key);
@@ -628,7 +637,23 @@ class Parser
             }
 
         }
-        return $newArray;
+        // here we handle optional properties of the resource types (named with question mark)
+        foreach ($newArray as $key => $value) {
+            if (in_array($key, ['get?', 'delete?', 'post?', 'put?'], true)) {
+                $correspondingKey = str_replace('?', '', $key);
+                if (isset($newArray[$correspondingKey])) {
+                    $newArray[$correspondingKey] = array_replace_recursive($newArray[$key], $newArray[$correspondingKey]);
+                }
+            }
+        }
+        // finally we remove empty array values
+        $result = [];
+        foreach ($newArray as $key => $value) {
+            if (!is_array($value) || !empty($value)) {
+                $result[$key] = $value;
+            }
+        }
+        return $result;
     }
 
     /**
@@ -642,10 +667,10 @@ class Parser
     {
         $variables = implode('|', array_keys($values));
         $newTrait = [];
-
         foreach ($trait as $key => &$value) {
+            // respects whitespaces before ">>" and after "<<"
             $newKey = preg_replace_callback(
-                '/<<(' . $variables . ')([\s]*\|[\s]*!(singularize|pluralize))?>>/',
+                '/<<(' . $variables . ')([\s]*\|[\s]*!(singularize|pluralize))?[\s]*>>/',
                 function ($matches) use ($values) {
                     $transformer = isset($matches[3]) ? $matches[3] : '';
                     switch($transformer) {
@@ -665,8 +690,9 @@ class Parser
             if (is_array($value)) {
                 $value = $this->applyTraitVariables($values, $value);
             } else {
+                // respects whitespaces before ">>" and after "<<"
                 $value = preg_replace_callback(
-                    '/<<(' . $variables . ')([\s]*\|[\s]*!(singularize|pluralize))?>>/',
+                    '/<<[\s]*(' . $variables . ')([\s]*\|[\s]*!(singularize|pluralize))?[\s]*>>/',
                     function ($matches) use ($values) {
                         $transformer = isset($matches[3]) ? $matches[3] : '';
 

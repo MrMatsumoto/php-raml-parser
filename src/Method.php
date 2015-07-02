@@ -189,8 +189,20 @@ class Method implements ArrayInstantiationInterface
 
         if (isset($data['securedBy'])) {
             foreach ($data['securedBy'] as $key => $securedBy) {
+                if (is_array($securedBy)) {
+                    $securedBySchemeName = array_keys($securedBy);
+                    $securedBySchemeName = $securedBySchemeName[0];
+                    $securedByData = $securedBy[$securedBySchemeName];
+                } else {
+                    $securedBySchemeName = $securedBy;
+                    $securedByData = array();
+                }
                 if ($securedBy) {
-                    $method->addSecurityScheme($apiDefinition->getSecurityScheme($securedBy));
+                    $securedByScheme = clone $apiDefinition->getSecurityScheme($securedBySchemeName);
+                    $securedByScheme->setSettings(
+                        array_merge($securedByScheme->getSettings(), $securedByData)
+                    );
+                    $method->addSecurityScheme($securedByScheme);
                 } else {
                     $method->addSecurityScheme(SecurityScheme::createFromArray('null', array(), $apiDefinition));
                 }
