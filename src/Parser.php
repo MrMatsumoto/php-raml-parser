@@ -25,6 +25,10 @@ use Inflect\Inflect;
  */
 class Parser
 {
+    private static $methodTypes = array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE');
+
+    private static $resourceTypeOptionalMethods = array( 'get?', 'post?', 'put?', 'patch?', 'delete?');
+
     /**
      * Array of cached files
      * No point in fetching them twice
@@ -523,9 +527,11 @@ class Parser
         if (is_array($structure)) {
             $result = array();
             foreach ($structure as $key => $structureElement) {
-                // some element could be placeholder for response types, so we should preserve them for further processing
-                if ($structureElement == null) {
-                    $structureElement = array();
+                // some methods could be placeholder for response types, so we should preserve them for further processing although they are empty
+                if (in_array(strtoupper($key), self::$methodTypes)) {
+                    if ($structureElement === null) {
+                        $structureElement = array();
+                    }
                 }
                 $result[$key] = $this->includeAndParseFiles($structureElement, $rootDir, $parseSchemas);
             }
@@ -639,7 +645,7 @@ class Parser
         }
         // here we handle optional properties of the resource types (named with question mark)
         foreach ($newArray as $key => $value) {
-            if (in_array($key, ['get?', 'delete?', 'post?', 'put?'], true)) {
+            if (in_array(strtolower($key), self::$resourceTypeOptionalMethods, true)) {
                 $correspondingKey = str_replace('?', '', $key);
                 if (isset($newArray[$correspondingKey])) {
                     $newArray[$correspondingKey] = array_replace_recursive($newArray[$key], $newArray[$correspondingKey]);
@@ -649,7 +655,7 @@ class Parser
         // finally we remove empty array values
         $result = [];
         foreach ($newArray as $key => $value) {
-            if (!is_array($value) || !empty($value)) {
+            if (is_array($value) || !empty($value)) {
                 $result[$key] = $value;
             }
         }
