@@ -25,8 +25,18 @@ use Inflect\Inflect;
  */
 class Parser
 {
-    private static $methodTypes = array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE');
+    /**
+     * http method types that will be respected in resource definition, even if they are empty (they could be merged with optional resourceType methods)
+     *
+     * @var array
+     */
+    private static $methodToPreserveEvenIfEmpty = array( 'get', 'post', 'put', 'patch', 'delete');
 
+    /**
+     * optional resourceType methods to respect
+     *
+     * @var array
+     */
     private static $resourceTypeOptionalMethods = array( 'get?', 'post?', 'put?', 'patch?', 'delete?');
 
     /**
@@ -528,7 +538,7 @@ class Parser
             $result = array();
             foreach ($structure as $key => $structureElement) {
                 // some methods could be placeholder for response types, so we should preserve them for further processing although they are empty
-                if (in_array(strtoupper($key), self::$methodTypes)) {
+                if (in_array(strtolower($key), self::$methodToPreserveEvenIfEmpty)) {
                     if ($structureElement === null) {
                         $structureElement = array();
                     }
